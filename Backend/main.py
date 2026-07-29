@@ -60,15 +60,18 @@ def health() -> JSONResponse:
 
 @app.post("/webhook")
 async def webhook_listener(request: Request,
-    x_hub_signature_256: str | None = Header(default=None, alias="X-Hub-Signature-256")
+    x_hub_signature_256: str | None = Header(default=None, alias="X-Hub-Signature-256"),
+    event_type: str | None = Header(default=None, alias="X-Github-Event"),
 ):
     monitor = setup_logging()
-    headers = dict(request.headers)
     body = await request.body()
     webhook_secret = os.getenv("GITHUB_WEBHOOK_SECRET")
 
+    if not webhook_secret:
+        monitor.error("Webhook secret is not configured on server")
+    monitor.debug("Webhook secret is configured")
     if not x_hub_signature_256:
-        monitor.debug("Missing signature")
+        monitor.error("Missing signature")
         raise HTTPException(status_code=401, detail="Missing signature")
     if not verify_signature(body, x_hub_signature_256, webhook_secret):
         monitor.warning("Failed authentication")
@@ -78,6 +81,7 @@ async def webhook_listener(request: Request,
     except json.JSONDecodeError:
         raise HTTPException(status=400, detail="Invalid JSON payload")
 
-    monitor.info("Received webhook with headers: %s", headers)
-    monitor.info("Received webhook data: %s", payload)
+    action = payload.get("action", "unknown")
+    monitor.info("Received event %s of the action %s", event_type, action)
+
     return {"status" : "received"}
