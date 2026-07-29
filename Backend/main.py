@@ -1,11 +1,25 @@
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Header, HTTPException
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
+from dotenv import load_dotenv
+import json
+import os
+import hmac
+import hashlib
 import logging
 import requests 
 import psutil
+
+load_dotenv("../.env")
 app = FastAPI()
 
+
+
+def verify_signature(payload: bytes, signature: str, secret: str) -> bool:
+    expected = hmac.new(secret.encode(), payload, hashlib.sha256).hexdigest()
+    if signature.startswith("sha256="):
+        signature = signature.split("=")[1]
+    return hmac.compare_digest(expected, signature)
 
 def setup_logging():
     logger = logging.getLogger("WebhookMonitor")
@@ -45,10 +59,25 @@ def health() -> JSONResponse:
     )
 
 @app.post("/webhook")
-async def webhook_listener(request: Request):
+async def webhook_listener(request: Request,
+    x_hub_signature_256: str | None = Header(default=None, alias="X-Hub-Signature-256")
+):
     monitor = setup_logging()
     headers = dict(request.headers)
-    payload =  await request.json()
+    body = await request.body()
+    webhook_secret = os.getenv("GITHUB_WEBHOOK_SECRET")
+
+    if not x_hub_signature_256:
+        monitor.debug("Missing signature")
+        raise HTTPException(status_code=401, detail="Missing signature")
+    if not verify_signature(body, x_hub_signature_256, webhook_secret):
+        monitor.warning("Failed authentication")
+        raise HTTPException(status_code=401, detail="Invalid signature")
+    try:
+        payload = json.loads(body)
+    except json.JSONDecodeError:
+        raise HTTPException(status=400, detail="Invalid JSON payload")
+
     monitor.info("Received webhook with headers: %s", headers)
     monitor.info("Received webhook data: %s", payload)
     return {"status" : "received"}
