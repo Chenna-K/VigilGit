@@ -69,6 +69,7 @@ async def webhook_listener(request: Request,
 
     if not webhook_secret:
         monitor.error("Webhook secret is not configured on server")
+        raise HTTPException(status_code=500, detail="secrets folder not configured")
     monitor.debug("Webhook secret is configured")
     if not x_hub_signature_256:
         monitor.error("Missing signature")
