@@ -1,6 +1,14 @@
-from fastapi import FastAPI, Request, Header, HTTPException
+from fastapi import FastAPI, Request, Header, HTTPException, Depends
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
+from fastapi.security import OAuth2PasswordBearer
+from contextlib import asynccontextmanager
+from database.utility.init_db import create_tables
+from database.utility.protectRoute import get_current_user
+from database.schema.user import UserOutput
+from router.auth import authRouter
+from datetime import datetime
+from pydantic import BaseModel, EmailStr, Field
+from typing import Annotated
 from dotenv import load_dotenv
 import json
 import os
@@ -10,10 +18,21 @@ import logging
 import requests 
 import psutil
 
+
 load_dotenv("../.env")
-app = FastAPI()
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    create_tables() # initialising the database at the start
+    yield # separation
 
+app = FastAPI(lifespan=lifespan)
+app.include_router(router=authRouter, tags={"auth"}, prefix="/auth")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
+
+@app.get("/protected")
+def read_protected(user : UserOutput = Depends(get_current_user)):
+    return {"data" : user}
 
 def verify_signature(payload: bytes, signature: str, secret: str) -> bool:
     expected = hmac.new(secret.encode(), payload, hashlib.sha256).hexdigest()
