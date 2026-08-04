@@ -1,11 +1,15 @@
 from fastapi import FastAPI, Request, Header, HTTPException, Depends
 from fastapi.responses import JSONResponse
 from fastapi.security import OAuth2PasswordBearer
+from fastapi.middleware.cors import CORSMiddleware 
+from slowapi.middleware import SlowAPIMiddleware
+from slowapi.errors import RateLimitExceeded
 from contextlib import asynccontextmanager
 from database.utility.init_db import create_tables
 from database.utility.protectRoute import get_current_user
 from database.schema.user import UserOutput
 from router.auth import authRouter
+from security.limiter import limiter
 from datetime import datetime
 from pydantic import BaseModel, EmailStr, Field
 from typing import Annotated
@@ -18,15 +22,32 @@ import logging
 import requests 
 import psutil
 
-
 load_dotenv("../.env")
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     create_tables() # initialising the database at the start
     yield # separation
 
+def custom_rate_limit_handler(request: Request, exc: RateLimitExceeded):
+    return JSONResponse(
+        status_code=429,
+        content= "Rate limit exceeded, please try again later."
+    )
+
 app = FastAPI(lifespan=lifespan)
+origins = os.getenv("ALLOWED_ORIGINS").split(",")
+app.add_middleware(CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "DELETE"],
+    allow_headers=["*"],
+)
+
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, custom_rate_limit_handler)
+app.add_middleware(SlowAPIMiddleware)
 app.include_router(router=authRouter, tags={"auth"}, prefix="/auth")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
