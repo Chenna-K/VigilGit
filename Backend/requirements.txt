@@ -25,6 +25,7 @@ limits==5.8.0
 markdown-it-py==4.2.0
 MarkupSafe==3.0.3
 mdurl==0.1.2
+multipledispatch==1.0.0
 packaging==26.2
 passlib==1.7.4
 psutil==7.2.2
