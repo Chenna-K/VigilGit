@@ -9,6 +9,7 @@ from database.utility.init_db import create_tables
 from database.utility.protectRoute import get_current_user
 from database.schema.user import UserOutput
 from router.auth import authRouter
+from router.scan import scanRouter
 from security.limiter import limiter
 from datetime import datetime
 from pydantic import BaseModel, EmailStr, Field
@@ -49,6 +50,8 @@ app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, custom_rate_limit_handler)
 app.add_middleware(SlowAPIMiddleware)
 app.include_router(router=authRouter, tags={"auth"}, prefix="/auth")
+app.include_router(router=scanRouter, prefix="/scanner",tags=["scan"])
+
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 @app.get("/protected")

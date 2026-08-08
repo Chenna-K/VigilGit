@@ -1,5 +1,5 @@
 from database.repository.userRepo import UserRepository
-from database.schema.user import UserInCreate, UserInLogin, UserWithToken, UserOutput
+from database.schema.user import UserInCreate, UserInLogin, UserWithToken, UserOutput, UserUpdate
 from security.hashHelper import HashHelper
 from security.authHandler import AuthHandler
 from sqlalchemy.orm import Session
@@ -30,6 +30,22 @@ class UserService:
             raise HTTPException(status_code=400, detail="User not found")
         user = self.__userRepository.get_user_by_id(id=user_id)
         return user
-    
+    def delete(self, user_id: int) -> bool:
+        success = self.__userRepository.delete_user(id=user_id)
+        if not success:
+            raise HTTPException(status_code=404, detail="User Account not found")
+        return True
+    def update_user(self, user_details: UserUpdate, curr_user : UserOutput) -> bool:
+        if user_details.id != curr_user.id:
+            raise HTTPException(status_code=403, detail="You do not have permissions")
+        exists = self.__userRepository.user_exists_by_id(id=UserUpdate.id)
+        if not exists:
+            raise HTTPException(status_code=404, detail="User Account not found")
+        success = self.__userRepository.user_update(UserUpdate)
+        return success
+    def is_user_admin(self, user_id: int) -> bool:
+        check = self.__userRepository.is_user_admin(id=user_id)
+        return check
+
 
 
