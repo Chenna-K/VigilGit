@@ -4,7 +4,15 @@ from pydantic import BaseModel
 import logging
 import requests 
 import psutil
+from .scanner import DiffScanner
 app = FastAPI()
+
+# single scanner instance
+scanner = DiffScanner()
+
+
+class ScannerRequest(BaseModel):
+    diff: str
 
 
 def setup_logging():
@@ -52,3 +60,10 @@ async def webhook_listener(request: Request):
     monitor.info("Received webhook with headers: %s", headers)
     monitor.info("Received webhook data: %s", payload)
     return {"status" : "received"}
+
+
+@app.post("/scanner")
+async def scanner_endpoint(payload: ScannerRequest):
+    """Accepts a JSON body with a `diff` string and returns found secrets."""
+    findings = scanner.scan_diff(payload.diff)
+    return JSONResponse(content={"findings": findings}, status_code=200)
